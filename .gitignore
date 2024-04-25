@@ -8,3 +8,6 @@
 # Logs
 .log
 logs
+
+# BFC Output
+/demo/out
