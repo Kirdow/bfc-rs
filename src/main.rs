@@ -1,32 +1,52 @@
-use std::{env::args, fs::File, io::{Error, Read, Write}, process::ExitCode};
 
-fn read_source(file_path: &str) -> String {
-    let mut file = File::open(file_path).expect("Failed to open BFC file!");
-    let mut result: String = String::new();
-    file.read_to_string(&mut result).expect("Failed to read BFC file!");
-    result
-}
+mod utils;
+mod files;
+mod types;
+mod tokenizer;
+mod lexer;
+mod program;
 
-fn write_compiled(file_path: &str, content: &String) -> Result<(), Error> {
-    let mut file = File::create(file_path)?;
-    file.write_all(content.as_bytes())?;
+use tokenizer::tokenize;
+use utils::get_args;
+use files::{read_file, write_file};
 
-    Ok(())
-}
+use std::process::ExitCode;
+
+use crate::lexer::lexer;
 
 fn main() -> ExitCode {
-    let args: Vec<String> = args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: {} <source> <dest>", &args[0]);
+    let file_paths = get_args();
+    if let Err(files_err) = file_paths {
+        eprintln!("{}", files_err);
         return ExitCode::FAILURE;
     }
 
-    let source_path = &args[1];
-    let dest_path = &args[2];
+    let (source_path, dest_path) = file_paths.unwrap();
+    let source_code = read_file(&source_path);
+    if let Err(_) = source_code {
+        eprintln!("Failed to read source: {}", source_path);
+        return ExitCode::FAILURE;
+    }
 
-    let source_code = read_source(&source_path);
-    if let Err(e) = write_compiled(dest_path, &source_code) {
-        eprintln!("Failed to compile BFC: {}", e);
+    let source_code = source_code.unwrap();
+
+    let tokens = tokenize(&source_code);
+    //println!("Tokenized Program:\n{}", tokens);
+
+    let symbols = lexer(&tokens);
+    //println!("Lexed Program:\n{}", symbols);
+
+    let compile_status = program::execute(&symbols);
+    if let Err(e) = compile_status {
+        eprintln!("{}", e);
+        return ExitCode::FAILURE;
+    }
+
+    // Do stuff
+
+    let result_code = compile_status.unwrap();
+    if let Err(e) = write_file(&dest_path, &result_code) {
+        eprintln!("Failed to write compiled BFC: {}", e);
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
